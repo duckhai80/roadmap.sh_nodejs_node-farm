@@ -1,6 +1,7 @@
 const fs = require("fs");
 const http = require("http");
 const url = require("url");
+const replaceTemplate = require("./modules/replaceTemplate");
 
 /* SERVER */
 const data = fs.readFileSync(`${__dirname}/dev-data/data.json`, "utf-8");
@@ -19,26 +20,10 @@ const templateProduct = fs.readFileSync(
 
 const dataObj = JSON.parse(data);
 
-const replaceTemplate = (template, product) => {
-  let newTemplate = template.replace(/{%PRODUCTNAME%}/g, product.productName);
-
-  newTemplate = newTemplate.replace(/{%ID%}/g, product.id);
-  newTemplate = newTemplate.replace(/{%IMAGE%}/g, product.image);
-  newTemplate = newTemplate.replace(/{%PRICE%}/g, product.price);
-  newTemplate = newTemplate.replace(/{%FROM%}/g, product.from);
-  newTemplate = newTemplate.replace(/{%NUTRIENTS%}/g, product.nutrients);
-  newTemplate = newTemplate.replace(/{%QUANTITY%}/g, product.quantity);
-  newTemplate = newTemplate.replace(/{%DESCRIPTION%}/g, product.description);
-
-  if (!product.organic)
-    newTemplate = newTemplate.replace(/{%NOT_ORGANIC%}/g, "not-organic");
-
-  return newTemplate;
-};
-
 const server = http.createServer((req, res) => {
-  const pathName = req.url;
+  const { query, path: pathName } = url.parse(req.url, true);
 
+  //  Overview page
   if (pathName === "/" || pathName === "/overview") {
     const cardsHtml = dataObj
       .map((dataItem) => replaceTemplate(templateCard, dataItem))
@@ -52,14 +37,33 @@ const server = http.createServer((req, res) => {
       "Content-type": "text/html",
     });
     res.end(templateOverviewFilled);
-  } else if (pathName === "/product") {
-    res.end("This is the PRODUCT");
-  } else if (pathName === "/api") {
+  }
+  //  Product page
+  else if (pathName === `/product?id=${query.id}`) {
+    const dataNeeded = dataObj.find((dataItem) => dataItem.id === +query.id);
+
+    res.writeHead(200, { "Content-type": "text/html" });
+
+    if (dataNeeded) {
+      const templateProductFilled = replaceTemplate(
+        templateProduct,
+        dataNeeded
+      );
+
+      res.end(templateProductFilled);
+    } else {
+      res.end("<h1>Page not found</h1>");
+    }
+  }
+  //  API page
+  else if (pathName === "/api") {
     res.writeHead(200, {
       "Content-type": "application/json",
     });
     res.end(data);
-  } else {
+  }
+  //  Not found
+  else {
     res.writeHead(404, {
       "Content-type": "text/html",
       "my-own-header": "hello-world",
